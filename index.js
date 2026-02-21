@@ -21,7 +21,7 @@ const BLOCK_TIME = 5 * 60 * 60 * 1000; // 5 hours
 const userData = new Map();
 
 client.on("ready", () => {
-  console.log(`Logged in as ${client.user.tag}`);
+  console.log(`NEW VERSION RUNNING - Logged in as ${client.user.tag}`);
 });
 
 client.on("messageCreate", async (message) => {
