@@ -1,4 +1,3 @@
-
 const { Client, GatewayIntentBits } = require("discord.js");
 const OpenAI = require("openai");
 
@@ -14,11 +13,12 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
-// 5 hour cooldown in milliseconds
-const COOLDOWN_TIME = 5 * 60 * 60 * 1000;
+// Limit settings
+const MAX_QUESTIONS = 5;
+const BLOCK_TIME = 5 * 60 * 60 * 1000; // 5 hours
 
-// Store last usage time per user
-const userCooldowns = new Map();
+// Store user data
+const userData = new Map();
 
 client.on("ready", () => {
   console.log(`Logged in as ${client.user.tag}`);
@@ -27,35 +27,54 @@ client.on("ready", () => {
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
 
-  if (message.content.startsWith("!ask")) {
-    const now = Date.now();
-    const lastUsed = userCooldowns.get(message.author.id);
+  if (!message.content.startsWith("!ask")) return;
 
-    if (lastUsed && now - lastUsed < COOLDOWN_TIME) {
-      const remaining = Math.ceil((COOLDOWN_TIME - (now - lastUsed)) / (60 * 60 * 1000));
-      return message.reply(`You must wait ${remaining} more hour(s) before using this again.`);
-    }
+  const userId = message.author.id;
+  const now = Date.now();
 
-    const question = message.content.replace("!ask", "").trim();
+  if (!userData.has(userId)) {
+    userData.set(userId, { count: 0, blockedUntil: 0 });
+  }
 
-    if (!question) {
-      return message.reply("Please ask a question after !ask");
-    }
+  const data = userData.get(userId);
 
-    try {
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        max_tokens: 500,
-        messages: [{ role: "user", content: question }]
-      });
+  // Check if user is blocked
+  if (data.blockedUntil && now < data.blockedUntil) {
+    const remainingHours = Math.ceil((data.blockedUntil - now) / (60 * 60 * 1000));
+    return message.reply(`You’ve reached your 5-question limit. Try again in ${remainingHours} hour(s).`);
+  }
 
-      userCooldowns.set(message.author.id, now);
+  // Reset after block expires
+  if (data.blockedUntil && now >= data.blockedUntil) {
+    data.count = 0;
+    data.blockedUntil = 0;
+  }
 
-      message.reply(response.choices[0].message.content);
-    } catch (error) {
-      console.error(error);
-      message.reply("There was an error talking to OpenAI.");
-    }
+  // Check question limit
+  if (data.count >= MAX_QUESTIONS) {
+    data.blockedUntil = now + BLOCK_TIME;
+    return message.reply("You’ve reached your 5-question limit. You are locked for 5 hours.");
+  }
+
+  const question = message.content.replace("!ask", "").trim();
+
+  if (!question) {
+    return message.reply("Please ask a question after !ask");
+  }
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      max_tokens: 300,
+      messages: [{ role: "user", content: question }]
+    });
+
+    data.count += 1;
+
+    message.reply(response.choices[0].message.content);
+  } catch (error) {
+    console.error(error);
+    message.reply("There was an error talking to OpenAI.");
   }
 });
 
