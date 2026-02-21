@@ -41,7 +41,7 @@ client.on("messageCreate", async (message) => {
   // Check if user is blocked
   if (data.blockedUntil && now < data.blockedUntil) {
     const remainingHours = Math.ceil((data.blockedUntil - now) / (60 * 60 * 1000));
-    return message.reply(`You’ve reached your 5-question limit. Try again in ${remainingHours} hour(s).`);
+    return message.reply(`NEW SYSTEM: 5-question limit reached. Try again in ${remainingHours} hour(s).`);
   }
 
   // Reset after block expires
